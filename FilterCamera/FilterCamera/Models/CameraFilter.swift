@@ -119,7 +119,7 @@ struct CameraFilter: Identifiable, Codable, Equatable {
                      saturation: 1.1, vibrance: 0.25, exposure: 0.15, temperature: -0.15),
         CameraFilter(name: "复古", brightness: 0, contrast: 0.95, highlights: -0.25,
                      saturation: 0.7, exposure: -0.1, temperature: 0.35,
-                     fade: 0.3, grain: 0.25, vignette: 0.8),
+                     grain: 0.25, fade: 0.3, vignette: 0.8),
         CameraFilter(name: "黑白", contrast: 1.2, shadows: 0.1, saturation: 0,
                      clarity: 0.3)
     ]
