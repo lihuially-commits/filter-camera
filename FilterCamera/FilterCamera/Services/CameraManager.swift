@@ -150,7 +150,8 @@ final class CameraManager: NSObject, ObservableObject {
 
     func capturePhoto() {
         guard let photoOutput else { return }
-        Self.applyPortraitRotation(to: photoOutput.connection(with: .video))
+        // 照片输出不要改连接方向：由系统写入 EXIF 方向，读取时再按 EXIF 摆正，
+        // 否则像素和 EXIF 各转一次，滤镜图会多转 90°
         let settings = AVCapturePhotoSettings()
         photoOutput.capturePhoto(with: settings, delegate: self)
     }

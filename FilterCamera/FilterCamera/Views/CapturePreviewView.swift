@@ -31,57 +31,59 @@ struct CapturePreviewView: View {
     }
 
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-
-            if let rendered {
-                Image(uiImage: rendered)
-                    .resizable()
-                    .scaledToFit()
-                    .ignoresSafeArea()
-            } else {
-                ProgressView()
-                    .tint(.white)
-            }
-
-            VStack(spacing: 0) {
-                // 顶部：重拍 / 保存
-                HStack {
-                    Button {
-                        close()
-                    } label: {
-                        Label(captured.isFromLibrary ? "返回" : "重拍",
-                              systemImage: captured.isFromLibrary ? "chevron.left" : "arrow.counterclockwise")
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(Color.black.opacity(0.4))
-                            .clipShape(Capsule())
-                    }
-
-                    Spacer()
-
-                    Button {
-                        save()
-                    } label: {
-                        Label(saving ? "保存中…" : "保存", systemImage: "square.and.arrow.down")
-                            .foregroundColor(.black)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(Color.white)
-                            .clipShape(Capsule())
-                    }
-                    .disabled(saving || rendered == nil)
+        VStack(spacing: 0) {
+            // 顶部：重拍 / 保存
+            HStack {
+                Button {
+                    close()
+                } label: {
+                    Label(captured.isFromLibrary ? "返回" : "重拍",
+                          systemImage: captured.isFromLibrary ? "chevron.left" : "arrow.counterclockwise")
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color.black.opacity(0.4))
+                        .clipShape(Capsule())
                 }
-                .padding(.horizontal)
-                .padding(.top, 8)
 
                 Spacer()
 
-                FilterStripView(filters: store.filters, selectedID: $selectedFilterID)
-                    .padding(.bottom, 24)
+                Button {
+                    save()
+                } label: {
+                    Label(saving ? "保存中…" : "保存", systemImage: "square.and.arrow.down")
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color.white)
+                        .clipShape(Capsule())
+                }
+                .disabled(saving || rendered == nil)
             }
+            .padding(.horizontal)
+            .padding(.top, 8)
 
+            Spacer(minLength: 0)
+
+            FilterStripView(filters: store.filters, selectedID: $selectedFilterID)
+                .padding(.bottom, 24)
+        }
+        // 画面放在背景层，撑满全屏但不影响按钮的安全区布局
+        .background {
+            ZStack {
+                Color.black
+                if let rendered {
+                    Image(uiImage: rendered)
+                        .resizable()
+                        .scaledToFit()
+                } else {
+                    ProgressView()
+                        .tint(.white)
+                }
+            }
+            .ignoresSafeArea()
+        }
+        .overlay {
             if showSavedToast {
                 Text(captured.isFromLibrary ? "已保存滤镜照片" : "已保存原图和滤镜照片")
                     .font(.subheadline)
