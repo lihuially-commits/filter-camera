@@ -214,7 +214,7 @@ struct CameraFilter: Identifiable, Codable, Equatable {
             let noise = texture.cropped(to: image.extent)
             let alpha = CIFilter(name: "CIColorMatrix")!
             alpha.setValue(noise, forKey: kCIInputImageKey)
-            let amount = 0.35 * grain
+            let amount = CGFloat(0.35 * grain)
             alpha.setValue(CIVector(x: amount, y: amount, z: amount, w: 0), forKey: "inputAVector")
             if let noisy = alpha.outputImage,
                let blend = CIFilter(name: "CISoftLightBlendMode") {
