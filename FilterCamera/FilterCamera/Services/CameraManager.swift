@@ -18,11 +18,15 @@ final class CameraManager: NSObject, ObservableObject {
     @Published var captured: CapturedPhoto?
     /// 相机权限被否时置 true，用于界面提示
     @Published var permissionDenied = false
+    /// 当前变焦倍数，1 为默认广角
+    @Published private(set) var zoomFactor: CGFloat = 1
 
     private let session = AVCaptureSession()
     private let sessionQueue = DispatchQueue(label: "camera.session.queue")
     private let videoQueue = DispatchQueue(label: "camera.video.queue")
     private var photoOutput: AVCapturePhotoOutput?
+    private var videoDevice: AVCaptureDevice?
+    private var maxZoomFactor: CGFloat = 5
     private var isConfigured = false
 
     // MARK: - 权限与启动
@@ -77,6 +81,8 @@ final class CameraManager: NSObject, ObservableObject {
             return
         }
         session.addInput(input)
+        videoDevice = device
+        maxZoomFactor = min(device.maxAvailableVideoZoomFactor, 5)
 
         // 视频帧输出：驱动实时滤镜预览
         let videoOutput = AVCaptureVideoDataOutput()
@@ -88,7 +94,8 @@ final class CameraManager: NSObject, ObservableObject {
             return
         }
         session.addOutput(videoOutput)
-        videoOutput.connection(with: .video)?.videoOrientation = .portrait
+        // 注意：画面方向只在这里转一次，取帧时不要再手动旋转，否会变成横向
+        Self.applyPortraitRotation(to: videoOutput.connection(with: .video))
 
         // 照片输出
         let photoOutput = AVCapturePhotoOutput()
@@ -103,13 +110,45 @@ final class CameraManager: NSObject, ObservableObject {
         isConfigured = true
     }
 
+    // MARK: - 变焦
+
+    /// 设置变焦倍数（1 为原始广角），animated 时平滑过渡
+    func setZoom(_ factor: CGFloat, animated: Bool = false) {
+        sessionQueue.async {
+            guard let device = self.videoDevice else { return }
+            let clamped = min(max(factor, 1), self.maxZoomFactor)
+            do {
+                try device.lockForConfiguration()
+                if animated {
+                    device.ramp(toVideoZoomFactor: clamped, withRate: 12)
+                } else {
+                    device.videoZoomFactor = clamped
+                }
+                device.unlockForConfiguration()
+                DispatchQueue.main.async {
+                    self.zoomFactor = clamped
+                }
+            } catch {
+                // 配置失败保持当前倍数
+            }
+        }
+    }
+
+    /// 把连接旋转到竖屏：iOS 17 起用 videoRotationAngle，旧系统退回 videoOrientation
+    private static func applyPortraitRotation(to connection: AVCaptureConnection?) {
+        guard let connection else { return }
+        if #available(iOS 17.0, *), connection.isVideoRotationAngleSupported(90) {
+            connection.videoRotationAngle = 90
+        } else {
+            connection.videoOrientation = .portrait
+        }
+    }
+
     // MARK: - 拍照
 
     func capturePhoto() {
         guard let photoOutput else { return }
-        if let connection = photoOutput.connection(with: .video) {
-            connection.videoOrientation = .portrait
-        }
+        Self.applyPortraitRotation(to: photoOutput.connection(with: .video))
         let settings = AVCapturePhotoSettings()
         photoOutput.capturePhoto(with: settings, delegate: self)
     }
@@ -125,8 +164,11 @@ final class CameraManager: NSObject, ObservableObject {
 extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        // 后置摄像头竖屏显示需顺时针旋转 90°
-        let image = CIImage(cvPixelBuffer: buffer).oriented(.right)
+        var image = CIImage(cvPixelBuffer: buffer)
+        // 兜底：若系统未按连接设置旋转（缓冲区仍是横向），手动补 90°
+        if image.extent.width > image.extent.height {
+            image = image.oriented(.right)
+        }
         DispatchQueue.main.async {
             self.previewImage = image
         }

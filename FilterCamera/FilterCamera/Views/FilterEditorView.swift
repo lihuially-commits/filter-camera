@@ -40,14 +40,17 @@ struct FilterEditorView: View {
                     TextField("输入名称，如：胶片、日系", text: $draft.name)
                 }
 
-                Section("基础") {
+                Section("光影") {
+                    ParamRow(title: "曝光", value: $draft.exposure, range: -2...2, step: 0.05)
                     ParamRow(title: "亮度", value: $draft.brightness, range: -0.2...0.2, step: 0.01)
                     ParamRow(title: "对比度", value: $draft.contrast, range: 0.5...1.5, step: 0.01)
-                    ParamRow(title: "饱和度", value: $draft.saturation, range: 0...2, step: 0.01)
-                    ParamRow(title: "曝光", value: $draft.exposure, range: -2...2, step: 0.05)
+                    ParamRow(title: "高光压制", value: $draft.highlights, range: 0...1, step: 0.01)
+                    ParamRow(title: "阴影提亮", value: $draft.shadows, range: 0...1, step: 0.01)
                 }
 
                 Section("色彩") {
+                    ParamRow(title: "饱和度", value: $draft.saturation, range: 0...2, step: 0.01)
+                    ParamRow(title: "自然饱和度", value: $draft.vibrance, range: -1...1, step: 0.01)
                     ParamRow(title: "色温", value: $draft.temperature, range: -1...1, step: 0.01)
                     ParamRow(title: "色调", value: $draft.tint, range: -100...100, step: 1)
                     ParamRow(title: "色相", value: $draft.hue, range: -180...180, step: 1)

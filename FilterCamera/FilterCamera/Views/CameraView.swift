@@ -7,6 +7,8 @@ struct CameraView: View {
     @StateObject private var store = FilterStore()
     @State private var selectedFilterID = CameraFilter.originalID
     @State private var showFilterList = false
+    /// 捏合变焦的起始倍数，手势结束时回写
+    @State private var baseZoom: CGFloat = 1
 
     private var selectedFilter: CameraFilter {
         store.filters.first { $0.id == selectedFilterID } ?? .original
@@ -18,6 +20,20 @@ struct CameraView: View {
 
             FilteredPreviewView(image: camera.previewImage, filter: selectedFilter)
                 .ignoresSafeArea()
+                .simultaneousGesture(
+                    MagnificationGesture()
+                        .onChanged { value in
+                            camera.setZoom(baseZoom * value)
+                        }
+                        .onEnded { _ in
+                            baseZoom = camera.zoomFactor
+                        }
+                )
+                .onTapGesture(count: 2) {
+                    // 双击回到 1×
+                    baseZoom = 1
+                    camera.setZoom(1, animated: true)
+                }
 
             VStack(spacing: 0) {
                 // 顶部：滤镜管理入口
@@ -38,6 +54,26 @@ struct CameraView: View {
                 }
 
                 Spacer()
+
+                // 变焦快捷档位：也可直接双指捏合
+                HStack(spacing: 8) {
+                    ForEach([CGFloat(1), 2, 3], id: \.self) { level in
+                        let active = abs(camera.zoomFactor - level) < 0.15
+                        Button {
+                            baseZoom = level
+                            camera.setZoom(level, animated: true)
+                        } label: {
+                            Text("\(Int(level))×")
+                                .font(.caption)
+                                .fontWeight(active ? .bold : .regular)
+                                .foregroundColor(active ? .black : .white)
+                                .frame(width: 34, height: 34)
+                                .background(active ? Color.yellow : Color.black.opacity(0.45))
+                                .clipShape(Circle())
+                        }
+                    }
+                }
+                .padding(.bottom, 12)
 
                 // 滤镜横滑条：点选即实时切换
                 FilterStripView(filters: store.filters, selectedID: $selectedFilterID)
