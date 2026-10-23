@@ -60,3 +60,11 @@ jobs:
         with:
           name: build-log
           path: build.log
+
+      - name: Publish build log to Release on failure
+        if: failure()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-build-log
+          name: Latest build log
+          files: build.log
