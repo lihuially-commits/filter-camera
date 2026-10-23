@@ -50,7 +50,8 @@ struct CapturePreviewView: View {
                     Button {
                         close()
                     } label: {
-                        Label("重拍", systemImage: "arrow.counterclockwise")
+                        Label(captured.isFromLibrary ? "返回" : "重拍",
+                              systemImage: captured.isFromLibrary ? "chevron.left" : "arrow.counterclockwise")
                             .foregroundColor(.white)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
@@ -82,7 +83,7 @@ struct CapturePreviewView: View {
             }
 
             if showSavedToast {
-                Text("已保存原图和滤镜照片")
+                Text(captured.isFromLibrary ? "已保存滤镜照片" : "已保存原图和滤镜照片")
                     .font(.subheadline)
                     .foregroundColor(.white)
                     .padding(.horizontal, 20)
@@ -121,7 +122,8 @@ struct CapturePreviewView: View {
         saving = true
         Task {
             do {
-                try await PhotoSaver.save(originalData: captured.originalData, filtered: rendered)
+                try await PhotoSaver.save(originalData: captured.isFromLibrary ? nil : captured.originalData,
+                                          filtered: rendered)
                 await MainActor.run {
                     saving = false
                     showSavedToast = true
@@ -151,7 +153,8 @@ enum PhotoSaver {
         }
     }
 
-    static func save(originalData: Data, filtered: UIImage) async throws {
+    /// originalData 为 nil 时只写入滤镜图（相册导入的照片不重复保存原图）
+    static func save(originalData: Data?, filtered: UIImage) async throws {
         let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
         guard status == .authorized || status == .limited else {
             throw SaveError.noPermission
@@ -160,7 +163,9 @@ enum PhotoSaver {
         let filteredData = filtered.jpegData(compressionQuality: 0.92)
         try await PHPhotoLibrary.shared().performChanges {
             // 原图：保留原始 EXIF
-            PHAssetCreationRequest.forAsset().addResource(with: .photo, data: originalData, options: nil)
+            if let originalData {
+                PHAssetCreationRequest.forAsset().addResource(with: .photo, data: originalData, options: nil)
+            }
             // 滤镜图
             if let filteredData {
                 let options = PHAssetResourceCreationOptions()

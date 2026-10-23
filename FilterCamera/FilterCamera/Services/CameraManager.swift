@@ -3,11 +3,13 @@ import AVFoundation
 import CoreImage
 import UIKit
 
-/// 一次拍照的结果：原始文件数据（含 EXIF，用于原图保存）+ 已校正方向的 CIImage（用于滤镜处理）
+/// 一张待处理照片：原始文件数据（含 EXIF）+ 已校正方向的 CIImage（用于滤镜处理）
 struct CapturedPhoto: Identifiable {
     let id = UUID()
     let originalData: Data
     let image: CIImage
+    /// 从系统相册导入时为 true：保存时只写入滤镜图，不重复保存原图
+    var isFromLibrary = false
 }
 
 /// 相机管理：会话配置、实时视频帧（供滤镜预览）、拍照、权限

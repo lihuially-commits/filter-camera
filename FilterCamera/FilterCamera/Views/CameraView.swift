@@ -1,5 +1,7 @@
 import SwiftUI
 import CoreImage
+import UIKit
+import PhotosUI
 
 /// 相机主界面：实时滤镜预览 + 滤镜横滑条 + 快门 + 滤镜管理入口
 struct CameraView: View {
@@ -9,6 +11,8 @@ struct CameraView: View {
     @State private var showFilterList = false
     /// 捏合变焦的起始倍数，手势结束时回写
     @State private var baseZoom: CGFloat = 1
+    /// 从系统相册选择的照片
+    @State private var pickedPhoto: PhotosPickerItem?
 
     private var selectedFilter: CameraFilter {
         store.filters.first { $0.id == selectedFilterID } ?? .original
@@ -79,19 +83,36 @@ struct CameraView: View {
                 FilterStripView(filters: store.filters, selectedID: $selectedFilterID)
                     .padding(.bottom, 16)
 
-                // 快门
-                Button {
-                    camera.capturePhoto()
-                } label: {
-                    ZStack {
-                        Circle()
-                            .strokeBorder(Color.white, lineWidth: 4)
-                            .frame(width: 72, height: 72)
-                        Circle()
-                            .fill(Color.white)
-                            .frame(width: 58, height: 58)
+                // 底部操作栏：相册入口 / 快门
+                HStack {
+                    PhotosPicker(selection: $pickedPhoto, matching: .images, photoLibrary: .shared()) {
+                        Image(systemName: "photo.on.rectangle.angled")
+                            .font(.title3)
+                            .foregroundColor(.white)
+                            .frame(width: 48, height: 48)
+                            .background(Color.black.opacity(0.4))
+                            .clipShape(Circle())
                     }
+
+                    Spacer()
+
+                    Button {
+                        camera.capturePhoto()
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .strokeBorder(Color.white, lineWidth: 4)
+                                .frame(width: 72, height: 72)
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 58, height: 58)
+                        }
+                    }
+
+                    // 与左侧相册按钮等宽，保证快门居中
+                    Color.clear.frame(width: 48, height: 48)
                 }
+                .padding(.horizontal, 24)
                 .padding(.bottom, 24)
             }
 
@@ -111,6 +132,9 @@ struct CameraView: View {
         }
         .onAppear { camera.checkPermissionAndStart() }
         .onDisappear { camera.stop() }
+        .onChange(of: pickedPhoto) { item in
+            loadPickedPhoto(item)
+        }
         .sheet(isPresented: $showFilterList) {
             FilterListView(store: store, previewImage: camera.previewImage)
         }
@@ -121,6 +145,24 @@ struct CameraView: View {
                 store: store,
                 onClose: { camera.retake() }
             )
+        }
+    }
+
+    /// 读取相册选中的照片，交给拍完预览页套滤镜
+    private func loadPickedPhoto(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        Task {
+            let data = try? await item.loadTransferable(type: Data.self)
+            let uiImage = data.flatMap { UIImage(data: $0) }
+            let ciImage = uiImage.flatMap {
+                CIImage(image: $0, options: [.applyOrientationProperty: true])
+            }
+            await MainActor.run {
+                if let data, let ciImage {
+                    camera.captured = CapturedPhoto(originalData: data, image: ciImage, isFromLibrary: true)
+                }
+                pickedPhoto = nil
+            }
         }
     }
 }
