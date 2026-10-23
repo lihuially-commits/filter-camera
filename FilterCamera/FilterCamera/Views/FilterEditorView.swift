@@ -41,24 +41,36 @@ struct FilterEditorView: View {
                 }
 
                 Section("光影") {
-                    ParamRow(title: "曝光", value: $draft.exposure, range: -2...2, step: 0.05)
-                    ParamRow(title: "亮度", value: $draft.brightness, range: -0.2...0.2, step: 0.01)
-                    ParamRow(title: "对比度", value: $draft.contrast, range: 0.5...1.5, step: 0.01)
-                    ParamRow(title: "高光压制", value: $draft.highlights, range: 0...1, step: 0.01)
-                    ParamRow(title: "阴影提亮", value: $draft.shadows, range: 0...1, step: 0.01)
+                    ParamRow(title: "曝光", value: $draft.exposure.uiScaled(50), range: -100...100, step: 1)
+                    ParamRow(title: "亮度", value: $draft.brightness.uiScaled(200), range: -100...100, step: 1)
+                    ParamRow(title: "对比度",
+                            value: $draft.contrast.ui({ ($0 - 1) * 200 }, { 1 + $0 / 200 }),
+                            range: -100...100, step: 1)
+                    ParamRow(title: "高光压制", value: $draft.highlights.uiScaled(100), range: 0...100, step: 1)
+                    ParamRow(title: "阴影提亮", value: $draft.shadows.uiScaled(100), range: 0...100, step: 1)
                 }
 
                 Section("色彩") {
-                    ParamRow(title: "饱和度", value: $draft.saturation, range: 0...2, step: 0.01)
-                    ParamRow(title: "自然饱和度", value: $draft.vibrance, range: -1...1, step: 0.01)
-                    ParamRow(title: "色温", value: $draft.temperature, range: -1...1, step: 0.01)
+                    ParamRow(title: "饱和度",
+                            value: $draft.saturation.ui({ ($0 - 1) * 100 }, { 1 + $0 / 100 }),
+                            range: -100...100, step: 1)
+                    ParamRow(title: "自然饱和度", value: $draft.vibrance.uiScaled(100), range: -100...100, step: 1)
+                    ParamRow(title: "色温", value: $draft.temperature.uiScaled(100), range: -100...100, step: 1)
                     ParamRow(title: "色调", value: $draft.tint, range: -100...100, step: 1)
-                    ParamRow(title: "色相", value: $draft.hue, range: -180...180, step: 1)
+                    ParamRow(title: "色相", value: $draft.hue.ui({ $0 / 1.8 }, { $0 * 1.8 }),
+                            range: -100...100, step: 1)
+                }
+
+                Section("细节") {
+                    ParamRow(title: "清晰度", value: $draft.clarity.uiScaled(100), range: 0...100, step: 1)
+                    ParamRow(title: "去朦胧", value: $draft.dehaze.uiScaled(100), range: 0...100, step: 1)
+                    ParamRow(title: "锐化", value: $draft.sharpen.uiScaled(100), range: 0...100, step: 1)
                 }
 
                 Section("质感") {
-                    ParamRow(title: "锐化", value: $draft.sharpen, range: 0...1, step: 0.01)
-                    ParamRow(title: "暗角", value: $draft.vignette, range: 0...2, step: 0.05)
+                    ParamRow(title: "颗粒", value: $draft.grain.uiScaled(100), range: 0...100, step: 1)
+                    ParamRow(title: "褪色", value: $draft.fade.uiScaled(100), range: 0...100, step: 1)
+                    ParamRow(title: "暗角", value: $draft.vignette.uiScaled(50), range: 0...100, step: 1)
                 }
             }
             .navigationTitle(isNew ? "新建滤镜" : "编辑滤镜")
@@ -100,6 +112,20 @@ struct FilterEditorView: View {
                 self.preview = ui
             }
         }
+    }
+}
+
+/// 内部存小数刻度，界面统一按 -100~100 / 0~100 显示
+private extension Binding where Value == Double {
+    /// 线性换算：内部值 × factor = 界面值
+    func uiScaled(_ factor: Double) -> Binding<Double> {
+        Binding(get: { wrappedValue * factor }, set: { wrappedValue = $0 / factor })
+    }
+
+    /// 自定义双向映射（用于对比度、饱和度这类以 1 为中点的参数）
+    func ui(_ toUI: @escaping (Double) -> Double,
+            _ fromUI: @escaping (Double) -> Double) -> Binding<Double> {
+        Binding(get: { toUI(wrappedValue) }, set: { wrappedValue = fromUI($0) })
     }
 }
 
