@@ -46,8 +46,8 @@ struct FilterEditorView: View {
                     ParamRow(title: "对比度",
                             value: $draft.contrast.ui({ ($0 - 1) * 200 }, { 1 + $0 / 200 }),
                             range: -100...100, step: 1)
-                    ParamRow(title: "高光压制", value: $draft.highlights.uiScaled(100), range: 0...100, step: 1)
-                    ParamRow(title: "阴影提亮", value: $draft.shadows.uiScaled(100), range: 0...100, step: 1)
+                    ParamRow(title: "高光", value: $draft.highlights.uiScaled(100), range: -100...100, step: 1)
+                    ParamRow(title: "阴影", value: $draft.shadows.uiScaled(100), range: -100...100, step: 1)
                 }
 
                 Section("色彩") {

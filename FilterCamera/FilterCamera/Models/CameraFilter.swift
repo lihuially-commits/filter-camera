@@ -14,9 +14,9 @@ struct CameraFilter: Identifiable, Codable, Equatable {
     var brightness: Double = 0
     /// 对比度，0.5 ~ 1.5，默认 1
     var contrast: Double = 1
-    /// 高光压制，0 ~ 1，默认 0（越大越压暗亮部，找回过曝细节）
+    /// 高光，-1（压暗亮部）~ 1（提亮亮部），默认 0
     var highlights: Double = 0
-    /// 阴影提亮，0 ~ 1，默认 0（越大越提亮暗部）
+    /// 阴影，-1（压暗暗部）~ 1（提亮暗部），默认 0
     var shadows: Double = 0
     /// 饱和度，0 ~ 2，默认 1
     var saturation: Double = 1
@@ -89,8 +89,8 @@ struct CameraFilter: Identifiable, Codable, Equatable {
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
         brightness = Self.clamp(try c.decodeIfPresent(Double.self, forKey: .brightness) ?? 0, -0.5, 0.5)
         contrast = Self.clamp(try c.decodeIfPresent(Double.self, forKey: .contrast) ?? 1, 0.5, 1.5)
-        highlights = Self.clamp(try c.decodeIfPresent(Double.self, forKey: .highlights) ?? 0, 0, 1)
-        shadows = Self.clamp(try c.decodeIfPresent(Double.self, forKey: .shadows) ?? 0, 0, 1)
+        highlights = Self.clamp(try c.decodeIfPresent(Double.self, forKey: .highlights) ?? 0, -1, 1)
+        shadows = Self.clamp(try c.decodeIfPresent(Double.self, forKey: .shadows) ?? 0, -1, 1)
         saturation = Self.clamp(try c.decodeIfPresent(Double.self, forKey: .saturation) ?? 1, 0, 2)
         vibrance = Self.clamp(try c.decodeIfPresent(Double.self, forKey: .vibrance) ?? 0, -1, 1)
         exposure = Self.clamp(try c.decodeIfPresent(Double.self, forKey: .exposure) ?? 0, -2, 2)
@@ -117,7 +117,7 @@ struct CameraFilter: Identifiable, Codable, Equatable {
     static let samples: [CameraFilter] = [
         CameraFilter(name: "清新", brightness: 0.05, contrast: 1.05, shadows: 0.2,
                      saturation: 1.1, vibrance: 0.25, exposure: 0.15, temperature: -0.15),
-        CameraFilter(name: "复古", brightness: 0, contrast: 0.95, highlights: 0.25,
+        CameraFilter(name: "复古", brightness: 0, contrast: 0.95, highlights: -0.25,
                      saturation: 0.7, exposure: -0.1, temperature: 0.35,
                      fade: 0.3, grain: 0.25, vignette: 0.8),
         CameraFilter(name: "黑白", contrast: 1.2, shadows: 0.1, saturation: 0,
@@ -135,6 +135,23 @@ struct CameraFilter: Identifiable, Codable, Equatable {
         mono.setValue(gray, forKey: "inputBVector")
         return mono.outputImage?.cropped(to: CGRect(x: 0, y: 0, width: 1600, height: 1600))
     }()
+
+    /// 高光 / 阴影共用一条色调曲线：
+    /// 阴影值抬升或压低 25% 灰阶，高光值抬升或压低 75% 灰阶，两端锚定
+    private static func toneCurve(highlights: Double, shadows: Double) -> CIFilter? {
+        guard let curve = CIFilter(name: "CIToneCurve") else { return nil }
+        func point(_ x: Double, _ y: Double) -> CIVector {
+            CIVector(x: CGFloat(x), y: CGFloat(min(max(y, 0), 1)))
+        }
+        let s = shadows * 0.10
+        let h = highlights * 0.12
+        curve.setValue(point(0, 0), forKey: "inputPoint0")
+        curve.setValue(point(0.25, 0.25 + s), forKey: "inputPoint1")
+        curve.setValue(point(0.5, 0.5), forKey: "inputPoint2")
+        curve.setValue(point(0.75, 0.75 + h), forKey: "inputPoint3")
+        curve.setValue(point(1, 1), forKey: "inputPoint4")
+        return curve
+    }
 
     /// 把当前参数应用到 CIImage 上，返回滤镜链输出
     func apply(to input: CIImage) -> CIImage {
@@ -166,13 +183,12 @@ struct CameraFilter: Identifiable, Codable, Equatable {
             image = f.outputImage ?? image
         }
 
-        // 高光压制 + 阴影提亮
+        // 高光 / 阴影：双向调整，用色调曲线同时控制亮部和暗部
         if highlights != 0 || shadows != 0 {
-            let f = CIFilter(name: "CIHighlightShadowAdjust")!
-            f.setValue(image, forKey: kCIInputImageKey)
-            f.setValue(1.0 - highlights * 0.8, forKey: "inputHighlightAmount")
-            f.setValue(shadows, forKey: "inputShadowAmount")
-            image = f.outputImage ?? image
+            if let curve = Self.toneCurve(highlights: highlights, shadows: shadows) {
+                curve.setValue(image, forKey: kCIInputImageKey)
+                image = curve.outputImage ?? image
+            }
         }
 
         // 去朦胧：提对比 + 提饱和度
